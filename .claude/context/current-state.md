@@ -1,31 +1,32 @@
 # Current State
 
-**Last updated:** 2026-04-02
-**Branch:** `develop`
-**Last commit:** merge of `feat/bootstrap` (4 commits)
-**Tag:** `v0.1.0-readonly` on `develop`
+**Last updated:** 2026-04-03
+**Branch:** `main` (develop merged)
+**Tag:** `v0.1.0-readonly` on `develop` (baseline)
 
-## What's working
+## What's validated against production Polymarket
 
-- TypeScript project compiles clean (`npx tsc --noEmit`)
-- 11/11 tests pass (smoke: config, models; transport: ws-probe; api: gamma-adapter)
-- Domain models defined, independent of any SDK
-- API adapters (Gamma, CLOB) use raw `fetch`, with rate limiting and retry
-- WebSocket transport with reconnect and health probe (`ws` package)
-- JSONL recorder with session metadata
-- Structured JSON logger
-- Terminal health dashboard
-- Graceful shutdown handler (SIGINT/SIGTERM)
-- Standalone scripts: `npm run probe:ws`, `npm run probe:markets`
-- **Validated against production Polymarket APIs** — all 3 channels HEALTHY
+- Gamma API: market discovery with camelCase fields, volume-sorted, closed=false
+- CLOB API: real orderbook fetch (bids, asks, midPrice, spread)
+- WebSocket: real `book` frame via decimal token ID subscription (`assets_ids`)
+- JSONL recorder: full session captured (session_meta → market → orderbook → ws_frame → session_end)
+- Graceful shutdown: clean exit, recorder flushed, exit code 0
+- 11/11 tests pass, typecheck clean
+
+## Key protocol findings
+
+- `assets_ids` requires **decimal** token IDs (76+ digit numbers), NOT hex condition IDs
+- Server returns `[]` silently for unrecognized IDs (no error)
+- `initial_dump: true` triggers immediate `book` snapshot
+- Keepalive: send text `"PING"` (not WS ping frame), server replies `"PONG"`
+- Market channel event types: `book`, `price_change`, `last_trade_price`, `tick_size_change`, `best_bid_ask`
 
 ## Completed milestones
 
 - `v0.0.0` — governance foundation (ADRs, context, constraints)
-- `v0.1.0-readonly` — validated read-only MVP (all transports verified against prod)
+- `v0.1.0-readonly` — validated read-only MVP (all data flows verified against prod)
 
-## Next steps
+## Next: Stage 1.5
 
-1. **Stage 2 planning** — define paper trading architecture (PaperExecutor interface, simulated fills, virtual portfolio)
-2. **Orderbook streaming** — subscribe to WebSocket channels for real-time orderbook updates
-3. **Market watcher** — periodic market discovery + orderbook snapshot recording
+Streaming, reconnect, recorder, replay — before paper trading.
+See `.claude/plans/2026-04-03-stage-1.5-streaming.md`
