@@ -134,16 +134,16 @@ Not implemented. Blocked by ADR-0002 (security audit required).
 
 ## Implementation order
 
-1. Config + models (types and configuration)
-2. Gamma API client (market discovery)
-3. CLOB API client (orderbook read)
-4. WebSocket transport (real-time feed)
-5. Recorder (snapshot persistence)
-6. Logging infrastructure
-7. Runtime orchestrator
-8. Terminal UI dashboard
-9. Health checks and graceful shutdown
-10. Integration smoke test
+1. ~~Config + models (types and configuration)~~ — DONE (d8d103b)
+2. ~~Gamma API client (market discovery)~~ — DONE (d8d103b)
+3. ~~CLOB API client (orderbook read)~~ — DONE (d8d103b)
+4. ~~WebSocket transport (real-time feed)~~ — DONE (d8d103b)
+5. ~~Recorder (snapshot persistence)~~ — DONE (d8d103b)
+6. ~~Logging infrastructure~~ — DONE (d8d103b)
+7. ~~Runtime orchestrator~~ — DONE (d8d103b)
+8. ~~Terminal UI dashboard~~ — DONE (d8d103b)
+9. ~~Health checks and graceful shutdown~~ — DONE (d8d103b)
+10. Integration smoke test — PENDING (run probes against real APIs)
 
 ## Risk register
 
