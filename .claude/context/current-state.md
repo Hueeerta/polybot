@@ -1,9 +1,9 @@
 # Current State
 
 **Last updated:** 2026-04-02
-**Branch:** `feat/bootstrap` (from `develop`)
-**Last commit:** `d8d103b` — minimal readonly bootstrap
-**Tag:** `v0.0.0` on `main` (governance-only, pre-code)
+**Branch:** `develop`
+**Last commit:** merge of `feat/bootstrap` (4 commits)
+**Tag:** `v0.1.0-readonly` on `develop`
 
 ## What's working
 
@@ -17,18 +17,15 @@
 - Terminal health dashboard
 - Graceful shutdown handler (SIGINT/SIGTERM)
 - Standalone scripts: `npm run probe:ws`, `npm run probe:markets`
+- **Validated against production Polymarket APIs** — all 3 channels HEALTHY
 
-## What's NOT done yet
+## Completed milestones
 
-- Scripts not tested against real Polymarket APIs (only mock tests so far)
-- Dashboard not tested with live data
-- Recorder not tested with real sessions
-- `feat/bootstrap` not merged to `develop` yet
-- No integration smoke test against real endpoints
-- `node_modules/` exists but `.env` does not (needs copy from `.env.example`)
+- `v0.0.0` — governance foundation (ADRs, context, constraints)
+- `v0.1.0-readonly` — validated read-only MVP (all transports verified against prod)
 
-## Next 3 steps
+## Next steps
 
-1. **Merge `feat/bootstrap` → `develop`** after confirming probe scripts work against real APIs
-2. **Run `npm run probe:ws` and `npm run probe:markets`** to validate transport and adapters with real Polymarket endpoints
-3. **Run the orchestrator** (`npx tsx src/polybot/index.ts`) to verify end-to-end: config → probes → dashboard → recorder → shutdown
+1. **Stage 2 planning** — define paper trading architecture (PaperExecutor interface, simulated fills, virtual portfolio)
+2. **Orderbook streaming** — subscribe to WebSocket channels for real-time orderbook updates
+3. **Market watcher** — periodic market discovery + orderbook snapshot recording
