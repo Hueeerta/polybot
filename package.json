@@ -1,0 +1,30 @@
+{
+  "name": "polybot",
+  "version": "0.1.0-alpha",
+  "description": "Polymarket read-only trading bot — market discovery, transport probes, and observability",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/polybot/index.js",
+    "dev": "tsc --watch",
+    "probe:ws": "npx tsx scripts/probe-ws.ts",
+    "probe:markets": "npx tsx scripts/discover-markets.ts",
+    "test": "npx tsx --test tests/**/*.test.ts",
+    "test:smoke": "npx tsx --test tests/smoke/*.test.ts",
+    "test:transport": "npx tsx --test tests/transport/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
