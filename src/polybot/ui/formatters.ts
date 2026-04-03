@@ -2,7 +2,7 @@
  * Terminal formatting utilities for the health dashboard.
  */
 
-import type { HealthState, ComponentHealth, HealthStatus } from '../models/health.js';
+import type { HealthState, ComponentHealth, HealthStatus, StreamingStats } from '../models/health.js';
 
 const COLORS = {
   reset: '\x1b[0m',
@@ -36,6 +36,43 @@ export function formatComponent(c: ComponentHealth): string {
   return `  ${c.name.padEnd(20)} ${status.padEnd(30)} ${latency.padStart(8)}${msg}`;
 }
 
+function formatDuration(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  if (m < 60) return `${m}m ${rem}s`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${m % 60}m`;
+}
+
+function formatStreamingStats(s: StreamingStats): string {
+  const lines: string[] = [];
+
+  const wsColor = s.wsState === 'connected' ? COLORS.green
+    : s.wsState === 'reconnecting' ? COLORS.yellow
+    : COLORS.red;
+
+  lines.push(`${COLORS.bold}=== STREAMING ===${COLORS.reset}`);
+  lines.push(`  WS state:        ${wsColor}${s.wsState.toUpperCase()}${COLORS.reset}`);
+  lines.push(`  Assets:          ${s.subscribedAssets}`);
+  lines.push(`  Frames:          ${COLORS.cyan}${s.totalFrames}${COLORS.reset}  (${Object.entries(s.frameCounts).map(([k, v]) => `${k}: ${v}`).join(', ') || 'none'})`);
+
+  if (s.lastFrameAt) {
+    const ago = Math.floor((Date.now() - new Date(s.lastFrameAt).getTime()) / 1000);
+    const ageColor = ago < 30 ? COLORS.green : ago < 60 ? COLORS.yellow : COLORS.red;
+    lines.push(`  Last frame:      ${ageColor}${ago}s ago${COLORS.reset}`);
+  } else {
+    lines.push(`  Last frame:      ${COLORS.dim}(none)${COLORS.reset}`);
+  }
+
+  lines.push(`  Reconnects:      ${s.reconnectCount > 0 ? COLORS.yellow + s.reconnectCount + COLORS.reset : '0'}`);
+  lines.push(`  Session events:  ${s.sessionEvents}`);
+  lines.push(`  Uptime:          ${formatDuration(s.sessionDurationMs)}`);
+
+  return lines.join('\n');
+}
+
 export function formatHealthReport(health: HealthStatus): string {
   const lines: string[] = [
     '',
@@ -43,7 +80,14 @@ export function formatHealthReport(health: HealthStatus): string {
     `${COLORS.dim}${'─'.repeat(70)}${COLORS.reset}`,
     ...health.components.map(formatComponent),
     `${COLORS.dim}${'─'.repeat(70)}${COLORS.reset}`,
-    '',
   ];
+
+  if (health.streaming) {
+    lines.push('');
+    lines.push(formatStreamingStats(health.streaming));
+    lines.push(`${COLORS.dim}${'─'.repeat(70)}${COLORS.reset}`);
+  }
+
+  lines.push('');
   return lines.join('\n');
 }

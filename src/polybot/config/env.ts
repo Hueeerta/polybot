@@ -32,6 +32,10 @@ export function loadConfig(): Config {
       reconnectMaxDelayMs: parseInt(process.env.POLYBOT_WS_RECONNECT_MAX_DELAY_MS ?? '', 10) || DEFAULTS.ws.reconnectMaxDelayMs,
       pingIntervalMs: parseInt(process.env.POLYBOT_WS_PING_INTERVAL_MS ?? '', 10) || DEFAULTS.ws.pingIntervalMs,
     },
+    streaming: {
+      marketCount: parseInt(process.env.POLYBOT_STREAMING_MARKET_COUNT ?? '', 10) || DEFAULTS.streaming.marketCount,
+      customFeatureEnabled: process.env.POLYBOT_STREAMING_CUSTOM_FEATURE === 'true' || DEFAULTS.streaming.customFeatureEnabled,
+    },
     recorder: {
       dir: process.env.POLYBOT_RECORDER_DIR ?? DEFAULTS.recorder.dir,
       maxFileSizeMb: parseInt(process.env.POLYBOT_RECORDER_MAX_FILE_SIZE_MB ?? '', 10) || DEFAULTS.recorder.maxFileSizeMb,
