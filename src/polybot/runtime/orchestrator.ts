@@ -88,8 +88,11 @@ export class Orchestrator {
     // Initial health check
     await this.refreshHealth();
 
-    // Start dashboard
-    this.dashboard.start(() => this.health);
+    // Start dashboard — compute live streaming stats each render
+    this.dashboard.start(() => ({
+      ...this.health,
+      streaming: this.getLiveStreamingStats(),
+    }));
 
     // Periodic health refresh
     setInterval(() => this.refreshHealth(), 30000);
@@ -300,6 +303,21 @@ export class Orchestrator {
     if (components.every(c => c.state === 'healthy')) return 'healthy';
     if (components.some(c => c.state === 'unhealthy')) return 'unhealthy';
     return 'degraded';
+  }
+
+  private getLiveStreamingStats(): StreamingStats {
+    const subStats = this.wsSubscriber.stats;
+    const recStats = this.recorder.stats;
+    return {
+      wsState: this.wsConnection.state,
+      subscribedAssets: subStats.subscribedAssets,
+      totalFrames: subStats.totalFrames,
+      frameCounts: subStats.frameCounts,
+      lastFrameAt: subStats.lastFrameAt,
+      reconnectCount: recStats.reconnectCount,
+      sessionEvents: recStats.eventCount,
+      sessionDurationMs: Date.now() - this.startTime,
+    };
   }
 
   private logSessionSummary(): void {
