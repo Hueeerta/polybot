@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0-streaming] — 2026-04-03
+
+### Added
+- WsSubscriber: manages market subscriptions via decimal token IDs, classifies frames
+  (book, price_change, last_trade_price, tick_size_change, best_bid_ask)
+- Auto-resubscribe on WebSocket reconnect — no silent data loss
+- Text PING keepalive every 10s (Polymarket protocol, not WS ping frame)
+- Stale connection detection (no message for 60s triggers reconnect)
+- Enhanced JSONL recorder: frame counts by type, session summary on close
+- Orchestrator: discovers top N markets, subscribes to WS, records all frames
+- Dashboard streaming panel: WS state, frame count, last frame age, reconnects, uptime
+- Replay script (`scripts/replay-session.ts`): filter by event type, integrity check
+- Streaming test runner (`scripts/run-streaming-test.ts`): configurable duration
+- StreamingConfig: marketCount, customFeatureEnabled
+- 9 new tests (8 subscriber, 1 recorder) — total 20/20
+
+### Validated
+- 45s real session: 60 frames (6 book + 54 price_change), 3 markets
+- Replay: session valid, integrity check passed
+- Shutdown: session summary logged, recorder flushed, exit 0
+
 ## [0.1.0-readonly] — 2026-04-03
 
 ### Added
