@@ -1,19 +1,23 @@
 import { config as loadDotenv } from 'dotenv';
-import { Config, DEFAULTS, RuntimeMode } from './schema.js';
+import { Config, DEFAULTS, PAPER_CONFIG_DEFAULTS, RuntimeMode } from './schema.js';
 
 /**
  * Load configuration from environment variables, falling back to defaults.
- * Enforces readonly mode — paper and live are not implemented.
+ * Supports readonly and paper modes. Live mode is blocked (ADR-0002).
  */
 export function loadConfig(): Config {
   loadDotenv();
 
   const mode = (process.env.POLYBOT_MODE ?? DEFAULTS.mode) as RuntimeMode;
 
-  if (mode !== 'readonly') {
+  if (mode === 'live') {
     throw new Error(
-      `Mode "${mode}" is not implemented. Only "readonly" is available in this stage.`
+      'Mode "live" is blocked until security audit (ADR-0002). Use "readonly" or "paper".'
     );
+  }
+
+  if (mode !== 'readonly' && mode !== 'paper') {
+    throw new Error(`Unknown mode "${mode}". Valid modes: readonly, paper.`);
   }
 
   return {
@@ -44,5 +48,16 @@ export function loadConfig(): Config {
       level: (process.env.POLYBOT_LOG_LEVEL ?? DEFAULTS.log.level) as Config['log']['level'],
       dir: process.env.POLYBOT_LOG_DIR ?? DEFAULTS.log.dir,
     },
+    ...(mode === 'paper' ? {
+      paper: {
+        initialBalanceUsdc: parseFloat(process.env.POLYBOT_PAPER_INITIAL_BALANCE ?? '') || PAPER_CONFIG_DEFAULTS.initialBalanceUsdc,
+        maxPositionSizeUsdc: parseFloat(process.env.POLYBOT_PAPER_MAX_POSITION_SIZE ?? '') || PAPER_CONFIG_DEFAULTS.maxPositionSizeUsdc,
+        maxOpenPositions: parseInt(process.env.POLYBOT_PAPER_MAX_OPEN_POSITIONS ?? '', 10) || PAPER_CONFIG_DEFAULTS.maxOpenPositions,
+        takerFeeBps: parseInt(process.env.POLYBOT_PAPER_TAKER_FEE_BPS ?? '', 10) ?? PAPER_CONFIG_DEFAULTS.takerFeeBps,
+        tickSize: parseFloat(process.env.POLYBOT_PAPER_TICK_SIZE ?? '') || PAPER_CONFIG_DEFAULTS.tickSize,
+        minOrderSize: parseFloat(process.env.POLYBOT_PAPER_MIN_ORDER_SIZE ?? '') || PAPER_CONFIG_DEFAULTS.minOrderSize,
+        staleBookThresholdMs: parseInt(process.env.POLYBOT_PAPER_STALE_BOOK_MS ?? '', 10) || PAPER_CONFIG_DEFAULTS.staleBookThresholdMs,
+      },
+    } : {}),
   };
 }

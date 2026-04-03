@@ -21,7 +21,12 @@ export type EventType =
   | 'health_check'
   | 'session_start'
   | 'session_end'
-  | 'session_summary';
+  | 'session_summary'
+  | 'paper_signal'
+  | 'paper_order'
+  | 'paper_fill'
+  | 'paper_rejected'
+  | 'paper_portfolio_snapshot';
 
 export interface DomainEvent<T = unknown> {
   /** Event type identifier */

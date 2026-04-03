@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0-paper-core] — 2026-04-03
+
+### Added
+- ADR-0005: Paper trading as execution simulator, not profitability oracle
+- Paper trading core module (`src/polybot/paper/`)
+  - `OrderIntent`: taker-only paper order (FAK/FOK) with sizeShares or notionalUsdc
+  - `OrderbookFillEngine`: walks real orderbook level-by-level for realistic fills
+  - `InMemoryPortfolio`: virtual cash, positions, avg entry price, realized/unrealized P&L
+  - `DefaultPaperExecutor`: intent → orderbook → fill → portfolio pipeline
+  - `SessionStats`: trades, win rate, gross/net P&L, avg slippage, per-market/source breakdown
+  - `RandomSignalProvider` and `StaticSignalProvider` for testing
+- `OrderbookAggregator` (`transport/orderbook-agg.ts`): in-memory latest book cache from WS frames
+  - Handles both `book` (full snapshot) and `price_change` (incremental) frames
+- `PaperConfig` with configurable: initial balance, max position, max positions, taker fee bps,
+  tick size, min order size, stale book threshold
+- Paper event types: `paper_signal`, `paper_order`, `paper_fill`, `paper_rejected`, `paper_portfolio_snapshot`
+- Config supports `mode: 'paper'` (in addition to `readonly`). Live mode remains blocked (ADR-0002).
+- 42 new tests: fill engine (16), portfolio (10), executor (8), orderbook aggregator (8)
+
+### Design decisions
+- Fill engine walks real asks/bids — NO midpoint fills, NO fixed slippage
+- Fees modeled as flat taker bps on trade notional (default 200 bps, conservative)
+  - Polymarket's actual fee model charges on net winnings — this is documented as a simplification
+- Taker-only (FAK/FOK) — no resting maker orders, no queue position modeling
+- Paper P&L is a research tool, NOT a profitability guarantee (ADR-0005)
+
 ## [0.2.0-streaming] — 2026-04-03
 
 ### Added
