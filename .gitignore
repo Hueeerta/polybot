@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+.pnp.*
+.yarn/
+
+# Build
+dist/
+build/
+*.tsbuildinfo
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.keystore
+
+# Wallet & credentials — NEVER commit these
+**/wallet*.json
+**/keyfile*.json
+**/private-key*
+**/mnemonic*
+**/seed-phrase*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Data snapshots (local only, can be large)
+data/snapshots/
+data/recordings/
+
+# Test
+coverage/
+.nyc_output/
+
+# Claude Code local settings
+.claude/settings.local.json
