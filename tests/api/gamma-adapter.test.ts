@@ -26,13 +26,14 @@ describe('GammaAdapter', () => {
   it('parses market response into domain model', async () => {
     const mockResponse = [
       {
-        condition_id: 'cond-123',
+        conditionId: 'cond-123',
         slug: 'test-market',
         question: 'Will it rain?',
         outcomes: '["Yes","No"]',
-        clob_token_ids: '["token-1","token-2"]',
+        clobTokenIds: '["token-1","token-2"]',
         active: true,
-        volume: 50000,
+        closed: false,
+        volumeNum: 50000,
       },
     ];
 

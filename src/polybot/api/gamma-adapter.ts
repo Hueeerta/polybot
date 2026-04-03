@@ -10,15 +10,17 @@ import { HttpClient } from './http-client.js';
 
 /** Raw shape from Gamma API — not part of our domain */
 interface GammaMarketResponse {
-  condition_id: string;
+  conditionId: string;
   slug: string;
   question: string;
   outcomes: string;         // JSON-encoded array, e.g. '["Yes","No"]'
-  clob_token_ids: string;   // JSON-encoded array, e.g. '["123","456"]'
+  clobTokenIds: string;     // JSON-encoded array (camelCase per API)
   active: boolean;
-  updated_at?: string;
-  end_date_iso?: string;
-  volume?: number;
+  closed: boolean;
+  updatedAt?: string;
+  endDateIso?: string;
+  volume?: string;
+  volumeNum?: number;
 }
 
 function parseGammaMarket(raw: GammaMarketResponse): Market {
@@ -27,7 +29,7 @@ function parseGammaMarket(raw: GammaMarketResponse): Market {
 
   try {
     outcomeLabels = JSON.parse(raw.outcomes);
-    tokenIds = JSON.parse(raw.clob_token_ids);
+    tokenIds = JSON.parse(raw.clobTokenIds);
   } catch {
     outcomeLabels = [];
     tokenIds = [];
@@ -39,14 +41,14 @@ function parseGammaMarket(raw: GammaMarketResponse): Market {
   }));
 
   return {
-    conditionId: raw.condition_id,
+    conditionId: raw.conditionId,
     slug: raw.slug,
     question: raw.question,
     outcomes,
-    active: raw.active,
-    updatedAt: raw.updated_at,
-    endDate: raw.end_date_iso,
-    volumeUsd: raw.volume,
+    active: raw.active && !raw.closed,
+    updatedAt: raw.updatedAt,
+    endDate: raw.endDateIso,
+    volumeUsd: raw.volumeNum,
   };
 }
 
@@ -61,7 +63,11 @@ export class GammaAdapter implements MarketProvider {
   }
 
   async getMarkets(opts?: { limit?: number; active?: boolean }): Promise<Market[]> {
-    const params: Record<string, string> = {};
+    const params: Record<string, string> = {
+      order: 'volume',
+      ascending: 'false',
+      closed: 'false',
+    };
     if (opts?.limit) params.limit = String(opts.limit);
     if (opts?.active !== undefined) params.active = String(opts.active);
 
@@ -76,7 +82,7 @@ export class GammaAdapter implements MarketProvider {
   }
 
   async getMarketByConditionId(conditionId: string): Promise<Market | null> {
-    const raw = await this.http.get<GammaMarketResponse[]>('/markets', { condition_id: conditionId });
+    const raw = await this.http.get<GammaMarketResponse[]>('/markets', { conditionId });
     if (!raw.length) return null;
     return parseGammaMarket(raw[0]);
   }

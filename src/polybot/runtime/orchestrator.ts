@@ -84,8 +84,8 @@ export class Orchestrator {
     const gammaHealth = await this.probeHttp('gamma', this.config.gamma.baseUrl + '/markets?limit=1');
     components.push(gammaHealth);
 
-    // Probe CLOB API
-    const clobHealth = await this.probeHttp('clob', this.config.clob.baseUrl + '/book?token_id=0');
+    // Probe CLOB API (base URL returns 200 if service is up)
+    const clobHealth = await this.probeHttp('clob', this.config.clob.baseUrl + '/');
     components.push(clobHealth);
 
     // Probe WebSocket
