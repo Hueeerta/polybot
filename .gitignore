@@ -48,5 +48,6 @@ data/recordings/
 coverage/
 .nyc_output/
 
-# Claude Code local settings
+# Claude Code local/runtime files
 .claude/settings.local.json
+.claude/agent-memory/
