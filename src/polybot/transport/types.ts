@@ -6,11 +6,15 @@ export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'rec
 
 export interface TransportConnection {
   readonly state: ConnectionState;
+  readonly reconnectCount: number;
+  readonly lastMessageAt: string | undefined;
   connect(): Promise<void>;
   disconnect(): Promise<void>;
+  send(data: string): void;
   onMessage(handler: (data: unknown) => void): void;
   onError(handler: (err: Error) => void): void;
   onStateChange(handler: (state: ConnectionState) => void): void;
+  onReconnected(handler: () => void): void;
 }
 
 export interface ProbeResult {

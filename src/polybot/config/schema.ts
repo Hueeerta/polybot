@@ -32,11 +32,19 @@ export interface LogConfig {
   dir: string;
 }
 
+export interface StreamingConfig {
+  /** Number of top markets to subscribe to */
+  marketCount: number;
+  /** Enable best_bid_ask custom feature */
+  customFeatureEnabled: boolean;
+}
+
 export interface Config {
   mode: RuntimeMode;
   gamma: GammaConfig;
   clob: ClobConfig;
   ws: WsConfig;
+  streaming: StreamingConfig;
   recorder: RecorderConfig;
   log: LogConfig;
 }
@@ -55,7 +63,11 @@ export const DEFAULTS: Config = {
     url: 'wss://ws-subscriptions-clob.polymarket.com/ws/market',
     reconnectDelayMs: 1000,
     reconnectMaxDelayMs: 30000,
-    pingIntervalMs: 30000,
+    pingIntervalMs: 10000,
+  },
+  streaming: {
+    marketCount: 3,
+    customFeatureEnabled: false,
   },
   recorder: {
     dir: 'data/recordings',
