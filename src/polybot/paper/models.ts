@@ -41,7 +41,7 @@ export interface FillResult {
   intentId: string;
   side: OrderSide;
   status: FillStatus;
-  /** Shares actually filled */
+  /** Shares actually filled (before buy fee deduction) */
   filledSize: number;
   /** Shares not filled (FAK remainder or FOK full size) */
   remainderSize: number;
@@ -51,8 +51,19 @@ export interface FillResult {
   slippageBps: number;
   /** Total USDC exchanged before fees (price * size summed) */
   grossAmount: number;
-  /** Taker fee in USDC */
+  /**
+   * Fee in USDC. For sells, this is the actual fee deducted from proceeds.
+   * For buys, this is the USDC-equivalent of the shares fee (informational).
+   */
   takerFee: number;
+  /**
+   * Fee in outcome shares (buy side only).
+   * Polymarket formula: feeRateBps * min(p, 1-p) * shares / (p * 10000)
+   * For sells, this is 0.
+   */
+  feeShares: number;
+  /** Fee rate in bps used for this fill */
+  feeRateBps: number;
   /** Per-level fill detail */
   levels: FillLevel[];
   filledAt: string;
@@ -87,7 +98,10 @@ export interface PaperTrade {
   filledSize: number;
   effectivePrice: number;
   grossAmount: number;
+  /** Fee in USDC (actual for sells, USDC-equivalent for buys) */
   takerFee: number;
+  /** Fee in shares (buy side only, 0 for sells) */
+  feeShares: number;
   slippageBps: number;
   signalSource: string;
   filledAt: string;
@@ -133,8 +147,18 @@ export interface PaperConfig {
   initialBalanceUsdc: number;
   maxPositionSizeUsdc: number;
   maxOpenPositions: number;
-  /** Taker fee in basis points. Applied to grossAmount on every fill. */
-  takerFeeBps: number;
+  /**
+   * Default fee rate in basis points.
+   * Used when no per-token override is available.
+   * Polymarket formula: feeRateBps * min(p, 1-p) * shares / (p * 10000) for buys (shares)
+   *                     feeRateBps * min(p, 1-p) * shares / 10000 for sells (USDC)
+   */
+  defaultFeeRateBps: number;
+  /**
+   * Per-token fee rate overrides (from CLOB API GET /fee-rate?token_id=...).
+   * Key: tokenId, Value: fee rate in bps.
+   */
+  feeRateBpsOverrides: Map<string, number>;
   /** Price tick size. Limit prices must be multiples of this. */
   tickSize: number;
   /** Minimum order size in shares. */
@@ -148,12 +172,11 @@ export const PAPER_DEFAULTS: PaperConfig = {
   maxPositionSizeUsdc: 100,
   maxOpenPositions: 5,
   /**
-   * 200 bps (2%) as conservative default.
-   * Polymarket's actual fee model charges on net winnings, not on trade notional.
-   * This flat-per-trade model overestimates fees — intentionally conservative.
-   * TODO: integrate per-market fee_rate_bps from last_trade_price frames.
+   * 200 bps (2%) default fee rate — matches Polymarket's standard taker fee.
+   * Applied via min(p, 1-p) formula: maximum fee at p=0.50, minimum near 0 or 1.
    */
-  takerFeeBps: 200,
+  defaultFeeRateBps: 200,
+  feeRateBpsOverrides: new Map(),
   tickSize: 0.01,
   minOrderSize: 1,
   staleBookThresholdMs: 30_000,

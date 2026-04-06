@@ -96,6 +96,8 @@ export class DefaultPaperExecutor implements PaperExecutor {
       slippageBps: 0,
       grossAmount: 0,
       takerFee: 0,
+      feeShares: 0,
+      feeRateBps: 0,
       levels: [],
       filledAt,
       rejectReason: reason,

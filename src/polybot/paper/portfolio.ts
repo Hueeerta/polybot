@@ -68,6 +68,7 @@ export class InMemoryPortfolio implements VirtualPortfolio {
       effectivePrice: fill.effectivePrice,
       grossAmount: fill.grossAmount,
       takerFee: fill.takerFee,
+      feeShares: fill.feeShares,
       slippageBps: fill.slippageBps,
       signalSource: intent.signalSource,
       filledAt: fill.filledAt,
@@ -171,24 +172,28 @@ export class InMemoryPortfolio implements VirtualPortfolio {
   }
 
   private applyBuy(intent: OrderIntent, fill: FillResult): void {
-    const totalDebit = fill.grossAmount + fill.takerFee;
-    this._cashBalance -= totalDebit;
+    // Buy: pay USDC for shares. Fee is in shares (deducted from what you receive).
+    // Cash debit = grossAmount only (fee is NOT in USDC for buys)
+    this._cashBalance -= fill.grossAmount;
+
+    // Shares received = filledSize - feeShares
+    const netShares = fill.filledSize - fill.feeShares;
 
     const existing = this.positions.get(intent.tokenId);
     if (existing && existing.shares > 1e-10) {
       // Add to existing position — weighted average entry
       const newTotalCost = existing.totalCost + fill.grossAmount;
-      const newShares = existing.shares + fill.filledSize;
+      const newShares = existing.shares + netShares;
       existing.shares = newShares;
       existing.avgEntryPrice = newTotalCost / newShares;
       existing.totalCost = newTotalCost;
-      existing.totalFees += fill.takerFee;
+      existing.totalFees += fill.takerFee; // USDC-equivalent for tracking
     } else {
       // New position
       this.positions.set(intent.tokenId, {
         tokenId: intent.tokenId,
-        shares: fill.filledSize,
-        avgEntryPrice: fill.effectivePrice,
+        shares: netShares,
+        avgEntryPrice: fill.grossAmount / netShares,
         totalCost: fill.grossAmount,
         currentPrice: fill.effectivePrice,
         unrealizedPnl: 0,

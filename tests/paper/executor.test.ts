@@ -77,12 +77,16 @@ describe('DefaultPaperExecutor', () => {
 
       assert.equal(fill.status, 'filled');
       assert.equal(fill.filledSize, 10);
+      assert.ok(fill.feeShares > 0, 'buy should have fee in shares');
+      assert.equal(fill.feeRateBps, 200);
 
-      // Portfolio updated
+      // Portfolio updated — cash debited by grossAmount only (buy fee is in shares)
       assert.ok(portfolio.cashBalance < 1000);
       const pos = portfolio.getPosition('token-a');
       assert.ok(pos);
-      assert.equal(pos.shares, 10);
+      // Net shares = filledSize - feeShares
+      assert.ok(pos.shares < 10, 'shares should be less than filled due to fee');
+      assert.ok(Math.abs(pos.shares - (10 - fill.feeShares)) < 1e-10);
 
       // Fill recorded via callback
       assert.equal(fills.length, 1);

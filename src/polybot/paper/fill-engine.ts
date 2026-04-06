@@ -94,7 +94,30 @@ export class OrderbookFillEngine implements FillEngine {
       ? Math.abs(effectivePrice - midPrice) / midPrice * 10_000
       : 0;
 
-    const takerFee = totalCost * (this.config.takerFeeBps / 10_000);
+    // Polymarket fee formula: feeRateBps * min(p, 1-p) * shares / denominator
+    // BUY:  fee in shares = feeRateBps * min(p, 1-p) * filledSize / (p * 10000)
+    // SELL: fee in USDC   = feeRateBps * min(p, 1-p) * filledSize / 10000
+    const feeRateBps = this.config.feeRateBpsOverrides.get(intent.tokenId)
+      ?? this.config.defaultFeeRateBps;
+    const p = effectivePrice;
+    const complementP = 1 - p;
+    const minP = Math.min(p, complementP);
+
+    let feeShares = 0;
+    let takerFee = 0; // USDC
+
+    if (feeRateBps > 0 && p > 0 && p <= 1) {
+      if (intent.side === 'buy') {
+        // Fee in outcome shares
+        feeShares = (feeRateBps * minP * filledSize) / (p * 10_000);
+        // USDC equivalent (informational)
+        takerFee = feeShares * p;
+      } else {
+        // Fee in USDC
+        takerFee = (feeRateBps * minP * filledSize) / 10_000;
+        feeShares = 0;
+      }
+    }
 
     return {
       intentId: intent.id,
@@ -106,6 +129,8 @@ export class OrderbookFillEngine implements FillEngine {
       slippageBps,
       grossAmount: totalCost,
       takerFee,
+      feeShares,
+      feeRateBps,
       levels: fillLevels,
       filledAt: now,
     };
@@ -142,6 +167,8 @@ export class OrderbookFillEngine implements FillEngine {
       slippageBps: 0,
       grossAmount: 0,
       takerFee: 0,
+      feeShares: 0,
+      feeRateBps: 0,
       levels: [],
       filledAt,
       rejectReason: reason,

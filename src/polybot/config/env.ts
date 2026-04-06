@@ -53,7 +53,7 @@ export function loadConfig(): Config {
         initialBalanceUsdc: parseFloat(process.env.POLYBOT_PAPER_INITIAL_BALANCE ?? '') || PAPER_CONFIG_DEFAULTS.initialBalanceUsdc,
         maxPositionSizeUsdc: parseFloat(process.env.POLYBOT_PAPER_MAX_POSITION_SIZE ?? '') || PAPER_CONFIG_DEFAULTS.maxPositionSizeUsdc,
         maxOpenPositions: parseInt(process.env.POLYBOT_PAPER_MAX_OPEN_POSITIONS ?? '', 10) || PAPER_CONFIG_DEFAULTS.maxOpenPositions,
-        takerFeeBps: parseInt(process.env.POLYBOT_PAPER_TAKER_FEE_BPS ?? '', 10) ?? PAPER_CONFIG_DEFAULTS.takerFeeBps,
+        defaultFeeRateBps: parseInt(process.env.POLYBOT_PAPER_FEE_RATE_BPS ?? '', 10) || PAPER_CONFIG_DEFAULTS.defaultFeeRateBps,
         tickSize: parseFloat(process.env.POLYBOT_PAPER_TICK_SIZE ?? '') || PAPER_CONFIG_DEFAULTS.tickSize,
         minOrderSize: parseFloat(process.env.POLYBOT_PAPER_MIN_ORDER_SIZE ?? '') || PAPER_CONFIG_DEFAULTS.minOrderSize,
         staleBookThresholdMs: parseInt(process.env.POLYBOT_PAPER_STALE_BOOK_MS ?? '', 10) || PAPER_CONFIG_DEFAULTS.staleBookThresholdMs,
