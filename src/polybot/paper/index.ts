@@ -25,4 +25,6 @@ export type {
 export { OrderbookFillEngine } from './fill-engine.js';
 export { InMemoryPortfolio } from './portfolio.js';
 export { DefaultPaperExecutor } from './executor.js';
-export { RandomSignalProvider, StaticSignalProvider } from './signal-providers.js';
+export { RandomSignalProvider, StaticSignalProvider, ReplaySignalProvider } from './signal-providers.js';
+export { PaperModule } from './paper-module.js';
+export type { PaperModuleConfig } from './paper-module.js';

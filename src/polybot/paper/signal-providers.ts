@@ -5,9 +5,11 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import type { SignalProvider, VirtualPortfolio } from './types.js';
 import type { OrderIntent, OrderSide, PaperOrderType } from './models.js';
 import type { WsFrame } from '../transport/ws-subscriber.js';
+import type { DomainEvent } from '../models/events.js';
 
 /**
  * Fires random buy/sell signals on price_change frames.
@@ -100,5 +102,59 @@ export class StaticSignalProvider implements SignalProvider {
       list.push(signal);
       this.signalsByTokenId.set(signal.tokenId, list);
     }
+  }
+}
+
+/**
+ * Replays paper_signal events from a recorded JSONL session file.
+ * Extracts OrderIntents from paper_signal events and emits them
+ * in order, matching by tokenId on incoming frames.
+ *
+ * Usage: load a previous session JSONL, extract signals, replay them
+ * against a new (or same) WS data feed.
+ */
+export class ReplaySignalProvider implements SignalProvider {
+  readonly name = 'replay';
+  private delegate: StaticSignalProvider;
+  private _signalCount: number;
+
+  constructor(signals: OrderIntent[]) {
+    this._signalCount = signals.length;
+    this.delegate = new StaticSignalProvider(signals);
+  }
+
+  /** Number of signals loaded for replay. */
+  get signalCount(): number {
+    return this._signalCount;
+  }
+
+  evaluate(frame: WsFrame, portfolio: VirtualPortfolio): OrderIntent[] {
+    return this.delegate.evaluate(frame, portfolio);
+  }
+
+  /**
+   * Load signals from a JSONL session file.
+   * Extracts paper_signal events and returns a new ReplaySignalProvider.
+   */
+  static fromJsonlFile(filePath: string): ReplaySignalProvider {
+    const content = readFileSync(filePath, 'utf-8');
+    const signals: OrderIntent[] = [];
+
+    for (const line of content.split('\n')) {
+      if (!line.trim()) continue;
+      try {
+        const event = JSON.parse(line) as DomainEvent;
+        if (event.type === 'paper_signal' && event.payload) {
+          const payload = event.payload as OrderIntent;
+          if (payload.id && payload.tokenId && payload.side) {
+            signals.push(payload);
+          }
+        }
+      } catch {
+        // Skip malformed lines
+      }
+    }
+
+    return new ReplaySignalProvider(signals);
   }
 }

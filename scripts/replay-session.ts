@@ -58,6 +58,11 @@ function formatFrameType(type: string): string {
   if (type.startsWith('ws_last_trade')) return `${COLORS.green}${type}${COLORS.reset}`;
   if (type === 'session_meta' || type === 'session_summary') return `${COLORS.bold}${type}${COLORS.reset}`;
   if (type === 'session_end') return `${COLORS.red}${type}${COLORS.reset}`;
+  if (type === 'paper_fill') return `${COLORS.green}${type}${COLORS.reset}`;
+  if (type === 'paper_rejected') return `${COLORS.red}${type}${COLORS.reset}`;
+  if (type === 'paper_signal') return `${COLORS.cyan}${type}${COLORS.reset}`;
+  if (type === 'paper_order') return `${COLORS.yellow}${type}${COLORS.reset}`;
+  if (type === 'paper_portfolio_snapshot') return `${COLORS.bold}${type}${COLORS.reset}`;
   return type;
 }
 
@@ -191,6 +196,33 @@ function briefPayload(type: string, payload: Record<string, unknown> | undefined
   if (type === 'health_check') {
     const h = payload as Record<string, unknown>;
     return String(h.overall || '');
+  }
+
+  if (type === 'paper_signal') {
+    return `${payload.side} ${payload.sizeShares}sh ${payload.tokenId?.toString().slice(0, 12)}.. [${payload.signalSource}]`;
+  }
+
+  if (type === 'paper_fill') {
+    const fill = payload.fill as Record<string, unknown> | undefined;
+    const intent = payload.intent as Record<string, unknown> | undefined;
+    if (fill && intent) {
+      return `${fill.side} ${fill.filledSize}sh @${Number(fill.effectivePrice).toFixed(4)} fee=$${Number(fill.takerFee).toFixed(4)} ${fill.status}`;
+    }
+    return '';
+  }
+
+  if (type === 'paper_rejected') {
+    const fill = payload.fill as Record<string, unknown> | undefined;
+    return fill ? `REJECTED: ${fill.rejectReason}` : 'REJECTED';
+  }
+
+  if (type === 'paper_order') {
+    return `${payload.side} ${payload.sizeShares}sh ${payload.tokenId?.toString().slice(0, 12)}..`;
+  }
+
+  if (type === 'paper_portfolio_snapshot') {
+    const stats = payload.stats as Record<string, unknown> | undefined;
+    return `cash=$${Number(payload.cashBalance).toFixed(2)} trades=${stats?.totalTrades} pnl=$${Number(stats?.netPnl).toFixed(4)}`;
   }
 
   return '';

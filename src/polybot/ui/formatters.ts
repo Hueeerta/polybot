@@ -2,7 +2,7 @@
  * Terminal formatting utilities for the health dashboard.
  */
 
-import type { HealthState, ComponentHealth, HealthStatus, StreamingStats } from '../models/health.js';
+import type { HealthState, ComponentHealth, HealthStatus, StreamingStats, PaperStats } from '../models/health.js';
 
 const COLORS = {
   reset: '\x1b[0m',
@@ -73,6 +73,28 @@ function formatStreamingStats(s: StreamingStats): string {
   return lines.join('\n');
 }
 
+function formatPaperStats(p: PaperStats): string {
+  const lines: string[] = [];
+  lines.push(`${COLORS.bold}=== PAPER TRADING ===${COLORS.reset}`);
+
+  // Balance and P&L
+  const pnlColor = p.netPnl >= 0 ? COLORS.green : COLORS.red;
+  const pnlSign = p.netPnl >= 0 ? '+' : '';
+  lines.push(`  Cash:            $${p.cashBalance.toFixed(2)} / $${p.initialBalance.toFixed(2)}`);
+  lines.push(`  Net P&L:         ${pnlColor}${pnlSign}$${p.netPnl.toFixed(4)}${COLORS.reset}  (realized: ${pnlSign}$${p.realizedPnl.toFixed(4)}, unrealized: ${p.unrealizedPnl >= 0 ? '+' : ''}$${p.unrealizedPnl.toFixed(4)})`);
+  lines.push(`  Fees paid:       $${p.totalFees.toFixed(4)}`);
+
+  // Positions and trades
+  lines.push(`  Positions:       ${p.openPositions} open`);
+  lines.push(`  Trades:          ${COLORS.cyan}${p.totalTrades}${COLORS.reset}  (win rate: ${(p.winRate * 100).toFixed(0)}%)`);
+
+  // Pipeline stats
+  lines.push(`  Signals:         ${p.signalsGenerated}  fills: ${p.fillsExecuted}  rejects: ${p.rejectsCount}`);
+  lines.push(`  Books tracked:   ${p.booksTracked}  frames: ${p.framesProcessed}`);
+
+  return lines.join('\n');
+}
+
 export function formatHealthReport(health: HealthStatus): string {
   const lines: string[] = [
     '',
@@ -85,6 +107,12 @@ export function formatHealthReport(health: HealthStatus): string {
   if (health.streaming) {
     lines.push('');
     lines.push(formatStreamingStats(health.streaming));
+    lines.push(`${COLORS.dim}${'─'.repeat(70)}${COLORS.reset}`);
+  }
+
+  if (health.paper) {
+    lines.push('');
+    lines.push(formatPaperStats(health.paper));
     lines.push(`${COLORS.dim}${'─'.repeat(70)}${COLORS.reset}`);
   }
 

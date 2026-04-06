@@ -1,14 +1,14 @@
 /**
  * Main orchestrator — wires components and manages lifecycle.
- * Strictly readonly: no paper, no live, no execution.
  *
- * Stage 1.5: adds WebSocket streaming with subscription,
- * frame recording, reconnect tracking, and streaming dashboard.
+ * Supports readonly and paper modes:
+ * - readonly: WS streaming, recording, dashboard (no execution)
+ * - paper: readonly + paper trading module (simulated execution)
  */
 
 import { randomUUID } from 'node:crypto';
 import type { Config } from '../config/schema.js';
-import type { HealthStatus, ComponentHealth, HealthState, StreamingStats } from '../models/health.js';
+import type { HealthStatus, ComponentHealth, HealthState, StreamingStats, PaperStats } from '../models/health.js';
 import { Logger } from '../logging/logger.js';
 import { GammaAdapter } from '../api/gamma-adapter.js';
 import { ClobAdapter } from '../api/clob-adapter.js';
@@ -18,6 +18,7 @@ import { WsProbe } from '../transport/ws-probe.js';
 import { JsonlRecorder } from '../recorder/jsonl-recorder.js';
 import { Dashboard } from '../ui/dashboard.js';
 import { ShutdownHandler } from './shutdown.js';
+import { PaperModule } from '../paper/paper-module.js';
 
 export class Orchestrator {
   private sessionId: string;
@@ -33,6 +34,8 @@ export class Orchestrator {
   private health: HealthStatus;
   private startTime: number = 0;
   private subscribedMarketNames: string[] = [];
+  private paperModule: PaperModule | null = null;
+  private paperSnapshotTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(private config: Config) {
     this.sessionId = randomUUID().slice(0, 8);
@@ -61,6 +64,12 @@ export class Orchestrator {
     // Register shutdown hooks
     this.shutdown.register(async () => {
       this.dashboard.stop();
+      if (this.paperSnapshotTimer) clearInterval(this.paperSnapshotTimer);
+      if (this.paperModule) {
+        this.paperModule.markToMarket();
+        await this.paperModule.snapshotPortfolio();
+        this.logPaperSummary();
+      }
       await this.wsConnection.disconnect();
       this.logSessionSummary();
       await this.recorder.stop();
@@ -82,6 +91,11 @@ export class Orchestrator {
     // Wire WS connection events to recorder
     this.wireWsEvents();
 
+    // Initialize paper module if mode=paper
+    if (this.config.mode === 'paper' && this.config.paper) {
+      this.initPaperModule();
+    }
+
     // Discover markets and start streaming
     await this.startStreaming();
 
@@ -92,12 +106,67 @@ export class Orchestrator {
     this.dashboard.start(() => ({
       ...this.health,
       streaming: this.getLiveStreamingStats(),
+      paper: this.paperModule ? this.getPaperStats() : undefined,
     }));
 
     // Periodic health refresh
     setInterval(() => this.refreshHealth(), 30000);
 
-    this.logger.info('Polybot streaming in readonly mode. Press Ctrl+C to stop.');
+    const modeLabel = this.config.mode === 'paper' ? 'paper trading' : 'readonly';
+    this.logger.info(`Polybot streaming in ${modeLabel} mode. Press Ctrl+C to stop.`);
+  }
+
+  private initPaperModule(): void {
+    if (!this.config.paper) return;
+
+    this.paperModule = new PaperModule({
+      schemaConfig: this.config.paper,
+      sessionId: this.sessionId,
+      recordEvent: (event) => this.recorder.record(event),
+    });
+
+    // Wire paper module as a second onFrame handler
+    this.wsSubscriber.onFrame(async (frame) => {
+      await this.paperModule!.handleFrame(frame);
+    });
+
+    // Periodic mark-to-market and portfolio snapshot (every 30s)
+    this.paperSnapshotTimer = setInterval(async () => {
+      if (this.paperModule) {
+        this.paperModule.markToMarket();
+        await this.paperModule.snapshotPortfolio();
+      }
+    }, 30_000);
+
+    this.logger.info('Paper trading module initialized', {
+      initialBalance: this.config.paper.initialBalanceUsdc,
+      feeRateBps: this.config.paper.defaultFeeRateBps,
+      maxPositionSize: this.config.paper.maxPositionSizeUsdc,
+    });
+  }
+
+  private getPaperStats(): PaperStats {
+    if (!this.paperModule) {
+      throw new Error('Paper module not initialized');
+    }
+    const stats = this.paperModule.getSessionStats();
+    const metrics = this.paperModule.metrics;
+    return {
+      cashBalance: metrics.cashBalance,
+      initialBalance: this.config.paper?.initialBalanceUsdc ?? 1000,
+      openPositions: metrics.openPositions,
+      totalTrades: stats.totalTrades,
+      signalsGenerated: metrics.signalsGenerated,
+      fillsExecuted: metrics.fillsExecuted,
+      rejectsCount: metrics.rejectsCount,
+      framesProcessed: metrics.framesProcessed,
+      booksTracked: metrics.booksTracked,
+      realizedPnl: stats.realizedPnl,
+      unrealizedPnl: stats.unrealizedPnl,
+      netPnl: stats.netPnl,
+      totalFees: stats.totalFees,
+      winRate: stats.winRate,
+    };
   }
 
   private wireWsEvents(): void {
@@ -318,6 +387,25 @@ export class Orchestrator {
       sessionEvents: recStats.eventCount,
       sessionDurationMs: Date.now() - this.startTime,
     };
+  }
+
+  private logPaperSummary(): void {
+    if (!this.paperModule) return;
+    const stats = this.paperModule.getSessionStats();
+    const metrics = this.paperModule.metrics;
+    this.logger.info('Paper trading summary', {
+      cashBalance: metrics.cashBalance,
+      openPositions: metrics.openPositions,
+      totalTrades: stats.totalTrades,
+      signalsGenerated: metrics.signalsGenerated,
+      fillsExecuted: metrics.fillsExecuted,
+      rejects: metrics.rejectsCount,
+      realizedPnl: stats.realizedPnl,
+      unrealizedPnl: stats.unrealizedPnl,
+      netPnl: stats.netPnl,
+      totalFees: stats.totalFees,
+      winRate: stats.winRate,
+    });
   }
 
   private logSessionSummary(): void {

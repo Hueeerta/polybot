@@ -25,9 +25,28 @@ export interface StreamingStats {
   sessionDurationMs: number;
 }
 
+/** Paper trading module stats for dashboard. */
+export interface PaperStats {
+  cashBalance: number;
+  initialBalance: number;
+  openPositions: number;
+  totalTrades: number;
+  signalsGenerated: number;
+  fillsExecuted: number;
+  rejectsCount: number;
+  framesProcessed: number;
+  booksTracked: number;
+  realizedPnl: number;
+  unrealizedPnl: number;
+  netPnl: number;
+  totalFees: number;
+  winRate: number;
+}
+
 export interface HealthStatus {
   overall: HealthState;
   components: ComponentHealth[];
   checkedAt: string;
   streaming?: StreamingStats;
+  paper?: PaperStats;
 }
