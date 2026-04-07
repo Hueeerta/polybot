@@ -99,6 +99,11 @@ export class Orchestrator {
     // Discover markets and start streaming
     await this.startStreaming();
 
+    // Fetch per-token fee rates for paper mode (best-effort, falls back to default)
+    if (this.paperModule) {
+      await this.fetchFeeRates();
+    }
+
     // Initial health check
     await this.refreshHealth();
 
@@ -143,6 +148,49 @@ export class Orchestrator {
       feeRate: this.config.paper.defaultFeeRate,
       maxPositionSize: this.config.paper.maxPositionSizeUsdc,
     });
+  }
+
+  /**
+   * Fetch per-token fee rates from CLOB API.
+   * Best-effort: if the endpoint returns 0 (unauthenticated) or fails,
+   * PaperModule falls back to config.paper.defaultFeeRate.
+   */
+  private async fetchFeeRates(): Promise<void> {
+    if (!this.paperModule || this.subscribedMarketNames.length === 0) return;
+
+    const overrides = new Map<string, number>();
+    // Collect token IDs from the WS subscriber's subscribed assets
+    // We re-derive from markets since we stored subscribedMarketNames but not tokenIds
+    const markets = await this.gamma.getMarkets({ limit: this.config.streaming.marketCount });
+
+    for (const market of markets) {
+      for (const outcome of market.outcomes) {
+        if (!outcome.tokenId) continue;
+        try {
+          const feeRate = await this.clob.getFeeRate(outcome.tokenId);
+          if (feeRate > 0) {
+            overrides.set(outcome.tokenId, feeRate);
+          }
+        } catch (err) {
+          this.logger.warn('Failed to fetch fee rate', {
+            tokenId: outcome.tokenId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    }
+
+    if (overrides.size > 0) {
+      this.paperModule.setFeeRateOverrides(overrides);
+      this.logger.info('Per-token fee rates loaded from CLOB API', {
+        tokensWithCustomRate: overrides.size,
+        rates: Object.fromEntries(overrides),
+      });
+    } else {
+      this.logger.info('No per-token fee rates from CLOB API, using default', {
+        defaultFeeRate: this.config.paper?.defaultFeeRate,
+      });
+    }
   }
 
   private getPaperStats(): PaperStats {

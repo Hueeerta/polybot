@@ -14,6 +14,11 @@ interface ClobBookResponse {
   asks: Array<{ price: string; size: string }>;
 }
 
+interface ClobFeeRateResponse {
+  /** Decimal fee rate (e.g. 0.03 for Sports). Returns 0 for unauthenticated requests. */
+  base_fee: number;
+}
+
 function parseLevel(raw: { price: string; size: string }): BookLevel {
   return {
     price: parseFloat(raw.price),
@@ -29,6 +34,19 @@ export class ClobAdapter implements OrderbookProvider {
       baseUrl: config.baseUrl,
       rateLimitRps: config.rateLimitRps,
     });
+  }
+
+  /**
+   * Fetch the fee rate for a token from the CLOB API.
+   * Endpoint: GET /fee-rate?token_id={token_id}
+   * Returns the decimal fee rate (e.g. 0.03 for Sports).
+   *
+   * Note: unauthenticated requests may return 0. In that case,
+   * callers should fall back to PAPER_DEFAULTS.defaultFeeRate.
+   */
+  async getFeeRate(tokenId: string): Promise<number> {
+    const resp = await this.http.get<ClobFeeRateResponse>('/fee-rate', { token_id: tokenId });
+    return resp.base_fee;
   }
 
   async getOrderbook(tokenId: string): Promise<OrderbookSnapshot> {
