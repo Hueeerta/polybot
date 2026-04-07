@@ -37,14 +37,20 @@ export class ClobAdapter implements OrderbookProvider {
   }
 
   /**
-   * Fetch the fee rate for a token from the CLOB API.
+   * Fetch the raw fee rate (bps) for a token from the CLOB API.
    * Endpoint: GET /fee-rate?token_id={token_id}
-   * Returns the decimal fee rate (e.g. 0.03 for Sports).
    *
-   * Note: unauthenticated requests may return 0. In that case,
-   * callers should fall back to PAPER_DEFAULTS.defaultFeeRate.
+   * IMPORTANT: The CLOB API returns `base_fee` in basis points (e.g. 1000 = 10%).
+   * This is the smart contract's parameter used with `min(p, 1-p)` formula,
+   * NOT the decimal feeRate used in the official docs formula `p*(1-p)`.
+   *
+   * These two formulas are structurally different — there is no direct conversion.
+   * Paper trading uses the docs formula with category-based decimal rates:
+   *   Crypto=0.072, Sports=0.03, Finance/Politics=0.04, Other=0.05, Geopolitics=0
+   *
+   * Returns the raw bps value for diagnostic/logging purposes.
    */
-  async getFeeRate(tokenId: string): Promise<number> {
+  async getFeeRateBps(tokenId: string): Promise<number> {
     const resp = await this.http.get<ClobFeeRateResponse>('/fee-rate', { token_id: tokenId });
     return resp.base_fee;
   }

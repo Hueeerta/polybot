@@ -151,46 +151,43 @@ export class Orchestrator {
   }
 
   /**
-   * Fetch per-token fee rates from CLOB API.
-   * Best-effort: if the endpoint returns 0 (unauthenticated) or fails,
-   * PaperModule falls back to config.paper.defaultFeeRate.
+   * Fetch per-token fee rate info from CLOB API (diagnostic only).
+   *
+   * The CLOB API returns `base_fee` in bps (e.g. 1000) — this is the smart
+   * contract's parameter used with the `min(p,1-p)` formula, NOT the decimal
+   * feeRate used in the official docs formula `fee = C × feeRate × p × (1-p)`.
+   *
+   * Paper trading uses the docs formula with category-based decimal rates
+   * (set via POLYBOT_PAPER_FEE_RATE or feeRateOverrides). The CLOB API
+   * values are logged for reference but NOT used as overrides.
+   *
+   * To set per-category rates, use PaperModule.setFeeRateOverrides() with
+   * decimal values: Crypto=0.072, Sports=0.03, Finance/Politics=0.04,
+   * Economics/Other=0.05, Geopolitics=0.
    */
   private async fetchFeeRates(): Promise<void> {
-    if (!this.paperModule || this.subscribedMarketNames.length === 0) return;
+    if (!this.paperModule) return;
 
-    const overrides = new Map<string, number>();
-    // Collect token IDs from the WS subscriber's subscribed assets
-    // We re-derive from markets since we stored subscribedMarketNames but not tokenIds
     const markets = await this.gamma.getMarkets({ limit: this.config.streaming.marketCount });
+    const bpsRates: Record<string, number> = {};
 
     for (const market of markets) {
       for (const outcome of market.outcomes) {
         if (!outcome.tokenId) continue;
         try {
-          const feeRate = await this.clob.getFeeRate(outcome.tokenId);
-          if (feeRate > 0) {
-            overrides.set(outcome.tokenId, feeRate);
-          }
-        } catch (err) {
-          this.logger.warn('Failed to fetch fee rate', {
-            tokenId: outcome.tokenId,
-            error: err instanceof Error ? err.message : String(err),
-          });
+          const bps = await this.clob.getFeeRateBps(outcome.tokenId);
+          bpsRates[outcome.tokenId.slice(0, 12) + '...'] = bps;
+        } catch {
+          // Non-critical — default fee rate applies
         }
       }
     }
 
-    if (overrides.size > 0) {
-      this.paperModule.setFeeRateOverrides(overrides);
-      this.logger.info('Per-token fee rates loaded from CLOB API', {
-        tokensWithCustomRate: overrides.size,
-        rates: Object.fromEntries(overrides),
-      });
-    } else {
-      this.logger.info('No per-token fee rates from CLOB API, using default', {
-        defaultFeeRate: this.config.paper?.defaultFeeRate,
-      });
-    }
+    this.logger.info('CLOB API fee rates (bps, diagnostic only — paper uses docs formula)', {
+      bpsRates,
+      paperDefaultFeeRate: this.config.paper?.defaultFeeRate,
+      note: 'Set POLYBOT_PAPER_FEE_RATE or use feeRateOverrides for per-category rates',
+    });
   }
 
   private getPaperStats(): PaperStats {
