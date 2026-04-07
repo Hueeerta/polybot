@@ -39,8 +39,8 @@ function toDomainConfig(schema: SchemaPaperConfig): PaperConfig {
     initialBalanceUsdc: schema.initialBalanceUsdc,
     maxPositionSizeUsdc: schema.maxPositionSizeUsdc,
     maxOpenPositions: schema.maxOpenPositions,
-    defaultFeeRateBps: schema.defaultFeeRateBps,
-    feeRateBpsOverrides: new Map(), // populated at runtime from CLOB API if available
+    defaultFeeRate: schema.defaultFeeRate,
+    feeRateOverrides: new Map(), // populated at runtime from CLOB API if available
     tickSize: schema.tickSize,
     minOrderSize: schema.minOrderSize,
     staleBookThresholdMs: schema.staleBookThresholdMs,
@@ -89,9 +89,9 @@ export class PaperModule {
     this.signalProviders = providers;
   }
 
-  /** Set per-token fee rate overrides (from CLOB API). */
+  /** Set per-token fee rate overrides (decimal, e.g. 0.03 for Sports). */
   setFeeRateOverrides(overrides: Map<string, number>): void {
-    this.config.feeRateBpsOverrides = overrides;
+    this.config.feeRateOverrides = overrides;
   }
 
   /**

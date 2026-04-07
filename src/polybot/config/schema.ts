@@ -43,8 +43,8 @@ export interface PaperConfig {
   initialBalanceUsdc: number;
   maxPositionSizeUsdc: number;
   maxOpenPositions: number;
-  /** Default fee rate in bps. Uses Polymarket min(p,1-p) formula. */
-  defaultFeeRateBps: number;
+  /** Default taker fee rate (decimal). Polymarket formula: fee = C × feeRate × p × (1-p) */
+  defaultFeeRate: number;
   tickSize: number;
   minOrderSize: number;
   staleBookThresholdMs: number;
@@ -66,7 +66,7 @@ export const PAPER_CONFIG_DEFAULTS: PaperConfig = {
   initialBalanceUsdc: 1000,
   maxPositionSizeUsdc: 100,
   maxOpenPositions: 5,
-  defaultFeeRateBps: 200,
+  defaultFeeRate: 0.05,
   tickSize: 0.01,
   minOrderSize: 1,
   staleBookThresholdMs: 30_000,

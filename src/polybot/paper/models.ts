@@ -52,18 +52,20 @@ export interface FillResult {
   /** Total USDC exchanged before fees (price * size summed) */
   grossAmount: number;
   /**
-   * Fee in USDC. For sells, this is the actual fee deducted from proceeds.
+   * Fee in USDC. Symmetric around p=0.50.
+   * Polymarket formula: C * feeRate * p * (1-p)
    * For buys, this is the USDC-equivalent of the shares fee (informational).
+   * For sells, this is the actual fee deducted from proceeds.
    */
   takerFee: number;
   /**
    * Fee in outcome shares (buy side only).
-   * Polymarket formula: feeRateBps * min(p, 1-p) * shares / (p * 10000)
+   * feeShares = takerFee / p = C * feeRate * (1-p)
    * For sells, this is 0.
    */
   feeShares: number;
-  /** Fee rate in bps used for this fill */
-  feeRateBps: number;
+  /** Fee rate (decimal) used for this fill. E.g. 0.03 for Sports. */
+  feeRate: number;
   /** Per-level fill detail */
   levels: FillLevel[];
   filledAt: string;
@@ -148,17 +150,23 @@ export interface PaperConfig {
   maxPositionSizeUsdc: number;
   maxOpenPositions: number;
   /**
-   * Default fee rate in basis points.
-   * Used when no per-token override is available.
-   * Polymarket formula: feeRateBps * min(p, 1-p) * shares / (p * 10000) for buys (shares)
-   *                     feeRateBps * min(p, 1-p) * shares / 10000 for sells (USDC)
+   * Default taker fee rate (decimal, NOT bps).
+   * Official Polymarket formula: fee = C × feeRate × p × (1-p)
+   *
+   * Category rates:
+   *   Crypto: 0.072
+   *   Sports: 0.03
+   *   Finance/Politics/Mentions/Tech: 0.04
+   *   Economics/Culture/Weather/Other: 0.05
+   *   Geopolitics: 0 (free)
    */
-  defaultFeeRateBps: number;
+  defaultFeeRate: number;
   /**
-   * Per-token fee rate overrides (from CLOB API GET /fee-rate?token_id=...).
-   * Key: tokenId, Value: fee rate in bps.
+   * Per-token fee rate overrides (decimal).
+   * Populated from CLOB API or market category mapping.
+   * Key: tokenId, Value: fee rate as decimal (e.g. 0.03).
    */
-  feeRateBpsOverrides: Map<string, number>;
+  feeRateOverrides: Map<string, number>;
   /** Price tick size. Limit prices must be multiples of this. */
   tickSize: number;
   /** Minimum order size in shares. */
@@ -172,11 +180,11 @@ export const PAPER_DEFAULTS: PaperConfig = {
   maxPositionSizeUsdc: 100,
   maxOpenPositions: 5,
   /**
-   * 200 bps (2%) default fee rate — matches Polymarket's standard taker fee.
-   * Applied via min(p, 1-p) formula: maximum fee at p=0.50, minimum near 0 or 1.
+   * 0.05 default — matches Economics/Culture/Weather/Other.
+   * Intentionally conservative (higher than Sports 0.03 or Politics 0.04).
    */
-  defaultFeeRateBps: 200,
-  feeRateBpsOverrides: new Map(),
+  defaultFeeRate: 0.05,
+  feeRateOverrides: new Map(),
   tickSize: 0.01,
   minOrderSize: 1,
   staleBookThresholdMs: 30_000,

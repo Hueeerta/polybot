@@ -140,7 +140,7 @@ export class Orchestrator {
 
     this.logger.info('Paper trading module initialized', {
       initialBalance: this.config.paper.initialBalanceUsdc,
-      feeRateBps: this.config.paper.defaultFeeRateBps,
+      feeRate: this.config.paper.defaultFeeRate,
       maxPositionSize: this.config.paper.maxPositionSizeUsdc,
     });
   }

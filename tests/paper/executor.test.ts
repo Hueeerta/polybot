@@ -78,7 +78,7 @@ describe('DefaultPaperExecutor', () => {
       assert.equal(fill.status, 'filled');
       assert.equal(fill.filledSize, 10);
       assert.ok(fill.feeShares > 0, 'buy should have fee in shares');
-      assert.equal(fill.feeRateBps, 200);
+      assert.equal(fill.feeRate, 0.05);
 
       // Portfolio updated — cash debited by grossAmount only (buy fee is in shares)
       assert.ok(portfolio.cashBalance < 1000);

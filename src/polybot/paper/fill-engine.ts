@@ -94,29 +94,30 @@ export class OrderbookFillEngine implements FillEngine {
       ? Math.abs(effectivePrice - midPrice) / midPrice * 10_000
       : 0;
 
-    // Polymarket fee formula: feeRateBps * min(p, 1-p) * shares / denominator
-    // BUY:  fee in shares = feeRateBps * min(p, 1-p) * filledSize / (p * 10000)
-    // SELL: fee in USDC   = feeRateBps * min(p, 1-p) * filledSize / 10000
-    const feeRateBps = this.config.feeRateBpsOverrides.get(intent.tokenId)
-      ?? this.config.defaultFeeRateBps;
+    // Official Polymarket fee formula (from docs.polymarket.com/trading/fees):
+    //   fee_usdc = C × feeRate × p × (1 - p)
+    //   fee_shares (buy) = fee_usdc / p = C × feeRate × (1 - p)
+    //   fee_usdc (sell) = C × feeRate × p × (1 - p)
+    //
+    // Where C = filledSize, p = effectivePrice, feeRate is decimal (e.g. 0.03)
+    // Fee is symmetric: identical USDC fee at p and (1-p).
+    // Fee is maximized at p=0.50.
+    const feeRate = this.config.feeRateOverrides.get(intent.tokenId)
+      ?? this.config.defaultFeeRate;
     const p = effectivePrice;
-    const complementP = 1 - p;
-    const minP = Math.min(p, complementP);
 
     let feeShares = 0;
     let takerFee = 0; // USDC
 
-    if (feeRateBps > 0 && p > 0 && p <= 1) {
+    if (feeRate > 0 && p > 0 && p <= 1) {
+      // USDC fee — same formula for both sides
+      takerFee = filledSize * feeRate * p * (1 - p);
+
       if (intent.side === 'buy') {
-        // Fee in outcome shares
-        feeShares = (feeRateBps * minP * filledSize) / (p * 10_000);
-        // USDC equivalent (informational)
-        takerFee = feeShares * p;
-      } else {
-        // Fee in USDC
-        takerFee = (feeRateBps * minP * filledSize) / 10_000;
-        feeShares = 0;
+        // Buy fee collected in shares
+        feeShares = takerFee / p; // = C * feeRate * (1-p)
       }
+      // Sell fee stays in USDC (feeShares = 0)
     }
 
     return {
@@ -130,7 +131,7 @@ export class OrderbookFillEngine implements FillEngine {
       grossAmount: totalCost,
       takerFee,
       feeShares,
-      feeRateBps,
+      feeRate,
       levels: fillLevels,
       filledAt: now,
     };
@@ -168,7 +169,7 @@ export class OrderbookFillEngine implements FillEngine {
       grossAmount: 0,
       takerFee: 0,
       feeShares: 0,
-      feeRateBps: 0,
+      feeRate: 0,
       levels: [],
       filledAt,
       rejectReason: reason,

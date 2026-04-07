@@ -35,7 +35,7 @@ const schemaConfig = {
   initialBalanceUsdc: 1000,
   maxPositionSizeUsdc: 100,
   maxOpenPositions: 5,
-  defaultFeeRateBps: 200,
+  defaultFeeRate: 0.05,
   tickSize: 0.01,
   minOrderSize: 1,
   staleBookThresholdMs: 30_000,
@@ -196,8 +196,8 @@ describe('PaperModule', () => {
       recordEvent: async (e) => { events.push(e); },
     });
 
-    // Set custom fee rate for token-1 (50 bps instead of default 200)
-    module.setFeeRateOverrides(new Map([['token-1', 50]]));
+    // Set custom fee rate for token-1 (0.03 instead of default 0.05)
+    module.setFeeRateOverrides(new Map([['token-1', 0.03]]));
 
     const signal: OrderIntent = {
       id: 'sig-1',
@@ -216,6 +216,6 @@ describe('PaperModule', () => {
     const fillEvents = events.filter(e => e.type === 'paper_fill');
     assert.equal(fillEvents.length, 1);
     const fill = (fillEvents[0].payload as Record<string, unknown>).fill as Record<string, unknown>;
-    assert.equal(fill.feeRateBps, 50);
+    assert.equal(fill.feeRate, 0.03);
   });
 });

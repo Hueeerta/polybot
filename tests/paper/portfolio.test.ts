@@ -21,13 +21,11 @@ function makeIntent(overrides: Partial<OrderIntent> = {}): OrderIntent {
 
 function makeFill(side: 'buy' | 'sell', size: number, price: number, overrides: Partial<FillResult> = {}): FillResult {
   const p = price;
-  const minP = Math.min(p, 1 - p);
-  const feeRateBps = 200;
-  // Polymarket formula
-  const feeShares = side === 'buy' ? (feeRateBps * minP * size) / (p * 10_000) : 0;
-  const takerFee = side === 'buy'
-    ? feeShares * p // USDC equivalent
-    : (feeRateBps * minP * size) / 10_000;
+  const feeRate = 0.05; // default decimal fee rate
+  // Official Polymarket formula: fee = C × feeRate × p × (1-p)
+  const takerFeeUsdc = size * feeRate * p * (1 - p);
+  const feeShares = side === 'buy' ? takerFeeUsdc / p : 0;
+  const takerFee = takerFeeUsdc;
 
   return {
     intentId: 'test-1',
@@ -40,7 +38,7 @@ function makeFill(side: 'buy' | 'sell', size: number, price: number, overrides: 
     grossAmount: size * price,
     takerFee,
     feeShares,
-    feeRateBps,
+    feeRate,
     levels: [{ price, size, usdcAmount: size * price }],
     filledAt: new Date().toISOString(),
     ...overrides,
@@ -56,20 +54,21 @@ describe('InMemoryPortfolio', () => {
 
       portfolio.applyFill(intent, fill);
 
-      // p=0.50, min(0.50,0.50)=0.50
-      // feeShares = 200*0.50*10 / (0.50*10000) = 0.20 shares
+      // p=0.50, fee_usdc = 10 * 0.05 * 0.50 * 0.50 = 0.125
+      // feeShares = 0.125 / 0.50 = 0.25
       // Cash debit = grossAmount only = 5.00 (buy fee is in shares, NOT USDC)
       assert.ok(Math.abs(portfolio.cashBalance - 995.00) < 1e-10);
 
       const pos = portfolio.getPosition('token-a');
       assert.ok(pos);
-      // Net shares = 10 - 0.20 = 9.80
-      assert.ok(Math.abs(pos.shares - 9.80) < 1e-10);
-      // avgEntryPrice = grossAmount / netShares = 5.00 / 9.80
-      assert.ok(Math.abs(pos.avgEntryPrice - 5.00 / 9.80) < 1e-10);
+      // Net shares = 10 - 0.25 = 9.75
+      const expectedFeeShares = 10 * 0.05 * 0.50 * 0.50 / 0.50; // 0.25
+      assert.ok(Math.abs(pos.shares - (10 - expectedFeeShares)) < 1e-10);
+      // avgEntryPrice = grossAmount / netShares = 5.00 / 9.75
+      assert.ok(Math.abs(pos.avgEntryPrice - 5.00 / (10 - expectedFeeShares)) < 1e-10);
       assert.ok(Math.abs(pos.totalCost - 5.00) < 1e-10);
-      // takerFee (USDC equiv) = feeShares * p = 0.20 * 0.50 = 0.10
-      assert.ok(Math.abs(pos.totalFees - 0.10) < 1e-10);
+      // takerFee = 10 * 0.05 * 0.50 * 0.50 = 0.125
+      assert.ok(Math.abs(pos.totalFees - 0.125) < 1e-10);
     });
 
     it('updates avg entry price on additional buy', () => {
@@ -89,10 +88,10 @@ describe('InMemoryPortfolio', () => {
       const pos = portfolio.getPosition('token-a');
       assert.ok(pos);
 
-      // p=0.50: feeShares1 = 200*0.50*10/(0.50*10000) = 0.20, net1 = 9.80
-      // p=0.60: min(0.60,0.40)=0.40, feeShares2 = 200*0.40*10/(0.60*10000) ≈ 0.13333, net2 ≈ 9.86667
-      const net1 = 10 - (200 * 0.50 * 10) / (0.50 * 10_000);
-      const net2 = 10 - (200 * 0.40 * 10) / (0.60 * 10_000);
+      // p=0.50: fee_usdc1 = 10*0.05*0.50*0.50=0.125, feeShares1 = 0.125/0.50=0.25, net1=9.75
+      // p=0.60: fee_usdc2 = 10*0.05*0.60*0.40=0.12, feeShares2 = 0.12/0.60=0.20, net2=9.80
+      const net1 = 10 - (10 * 0.05 * 0.50 * 0.50) / 0.50;
+      const net2 = 10 - (10 * 0.05 * 0.60 * 0.40) / 0.60;
       assert.ok(Math.abs(pos.shares - (net1 + net2)) < 1e-8);
 
       // avgEntry = (5.00 + 6.00) / (net1 + net2)
@@ -112,7 +111,7 @@ describe('InMemoryPortfolio', () => {
       const buyFill = makeFill('buy', 10, 0.50);
       portfolio.applyFill(makeIntent({ id: 'b1' }), buyFill);
 
-      // Net shares from buy: 10 - feeShares(0.20) = 9.80
+      // Net shares from buy: 10 - feeShares(0.25) = 9.75
       const netBuyShares = 10 - buyFill.feeShares;
 
       // Sell all net shares @ 0.60
@@ -125,8 +124,8 @@ describe('InMemoryPortfolio', () => {
       const pos = portfolio.getPosition('token-a');
       assert.equal(pos, undefined);
 
-      // Cash: 1000 - 5.00 (buy) + (9.80 * 0.60 - sellFee)
-      // sellFee: 200 * min(0.60, 0.40) * 9.80 / 10000 = 200 * 0.40 * 9.80 / 10000 = 0.0784
+      // Cash: 1000 - 5.00 (buy) + (netBuyShares * 0.60 - sellFee)
+      // sellFee: netBuyShares * 0.05 * 0.60 * 0.40
       const sellProceeds = netBuyShares * 0.60 - sellFill.takerFee;
       assert.ok(Math.abs(portfolio.cashBalance - (995.00 + sellProceeds)) < 1e-8);
     });
@@ -138,7 +137,7 @@ describe('InMemoryPortfolio', () => {
       const buyFill = makeFill('buy', 20, 0.50);
       portfolio.applyFill(makeIntent({ sizeShares: 20 }), buyFill);
 
-      const netBuyShares = 20 - buyFill.feeShares; // 20 - 0.40 = 19.60
+      const netBuyShares = 20 - buyFill.feeShares; // 20 - 0.50 = 19.50
       const avgEntry = 10.00 / netBuyShares; // grossAmount / netShares
 
       // Sell 10 shares @ 0.60
@@ -278,7 +277,7 @@ describe('InMemoryPortfolio', () => {
         grossAmount: 0,
         takerFee: 0,
         feeShares: 0,
-        feeRateBps: 0,
+        feeRate: 0,
         levels: [],
         filledAt: new Date().toISOString(),
         rejectReason: 'test_rejection',

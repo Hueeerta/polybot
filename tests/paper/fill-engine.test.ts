@@ -193,54 +193,46 @@ describe('OrderbookFillEngine', () => {
     });
   });
 
-  describe('fees (Polymarket min(p, 1-p) formula)', () => {
-    it('buy fee is in shares, using min(p, 1-p)', () => {
+  describe('fees (Polymarket official p*(1-p) formula)', () => {
+    it('buy fee is in shares, using p*(1-p)', () => {
       const book = makeBook([[0.49, 100]], [[0.51, 100]]);
       const intent = makeIntent({ sizeShares: 10 });
       const fill = engine.tryFill(intent, book);
 
-      // p = 0.51, min(0.51, 0.49) = 0.49
-      // feeShares = 200 * 0.49 * 10 / (0.51 * 10000) = 980 / 5100 ≈ 0.19216
-      // takerFee (USDC equiv) = feeShares * p = 0.19216 * 0.51 ≈ 0.09800
-      const expectedFeeShares = (200 * 0.49 * 10) / (0.51 * 10_000);
+      // p = 0.51, fee_usdc = 10 * 0.05 * 0.51 * 0.49 = 0.12495
+      // feeShares = fee_usdc / p = 0.12495 / 0.51 = 0.245...
+      const expectedFeeUsdc = 10 * 0.05 * 0.51 * 0.49;
+      const expectedFeeShares = expectedFeeUsdc / 0.51;
       assert.ok(Math.abs(fill.feeShares - expectedFeeShares) < 1e-10,
         `feeShares ${fill.feeShares} should be ~${expectedFeeShares}`);
-      assert.ok(Math.abs(fill.takerFee - expectedFeeShares * 0.51) < 1e-10,
-        `takerFee (USDC equiv) ${fill.takerFee} should be ~${expectedFeeShares * 0.51}`);
-      assert.equal(fill.feeRateBps, 200);
+      assert.ok(Math.abs(fill.takerFee - expectedFeeUsdc) < 1e-10,
+        `takerFee ${fill.takerFee} should be ~${expectedFeeUsdc}`);
+      assert.equal(fill.feeRate, 0.05);
     });
 
-    it('sell fee is in USDC, using min(p, 1-p)', () => {
+    it('sell fee is in USDC, using p*(1-p)', () => {
       const book = makeBook([[0.49, 100]], [[0.51, 100]]);
       const intent = makeIntent({ side: 'sell', sizeShares: 10 });
       const fill = engine.tryFill(intent, book);
 
-      // p = 0.49, min(0.49, 0.51) = 0.49
-      // takerFee = 200 * 0.49 * 10 / 10000 = 0.098
-      const expectedFeeUsdc = (200 * 0.49 * 10) / 10_000;
+      // p = 0.49, fee_usdc = 10 * 0.05 * 0.49 * 0.51 = 0.12495
+      const expectedFeeUsdc = 10 * 0.05 * 0.49 * 0.51;
       assert.ok(Math.abs(fill.takerFee - expectedFeeUsdc) < 1e-10,
         `takerFee ${fill.takerFee} should be ~${expectedFeeUsdc}`);
       assert.equal(fill.feeShares, 0);
     });
 
-    it('fee is symmetric: same min(p, 1-p) for p=0.30 and p=0.70', () => {
-      // At p=0.30, min(0.30, 0.70) = 0.30
-      // At p=0.70, min(0.70, 0.30) = 0.30
+    it('fee is symmetric: same USDC fee at p=0.30 and p=0.70', () => {
       const book30 = makeBook([[0.29, 100]], [[0.30, 100]]);
       const book70 = makeBook([[0.69, 100]], [[0.70, 100]]);
 
       const fill30 = engine.tryFill(makeIntent({ sizeShares: 10 }), book30);
       const fill70 = engine.tryFill(makeIntent({ sizeShares: 10 }), book70);
 
-      // Both should use minP = 0.30
-      // fill30: feeShares = 200 * 0.30 * 10 / (0.30 * 10000) = 0.20
-      // fill70: feeShares = 200 * 0.30 * 10 / (0.70 * 10000) ≈ 0.08571
-      // The minP is the same but the denomination differs — not equal in shares, but
-      // the USDC-equivalent fee should be similar:
-      // fill30 USDC: 0.20 * 0.30 = 0.06
-      // fill70 USDC: 0.08571 * 0.70 = 0.06
+      // 10 * 0.05 * 0.30 * 0.70 = 0.105
+      // 10 * 0.05 * 0.70 * 0.30 = 0.105
       assert.ok(Math.abs(fill30.takerFee - fill70.takerFee) < 1e-10,
-        'USDC-equivalent fees should be equal at symmetric prices');
+        'USDC fees should be equal at symmetric prices');
     });
 
     it('fee is maximized at p=0.50', () => {
@@ -259,15 +251,15 @@ describe('OrderbookFillEngine', () => {
 
   describe('per-token fee rate override', () => {
     it('uses token-specific fee rate when available', () => {
-      const overrides = new Map([['test-token', 100]]); // 100 bps instead of default 200
-      const customConfig: PaperConfig = { ...PAPER_DEFAULTS, feeRateBpsOverrides: overrides };
+      const overrides = new Map([['test-token', 0.025]]); // 0.025 instead of default 0.05
+      const customConfig: PaperConfig = { ...PAPER_DEFAULTS, feeRateOverrides: overrides };
       const customEngine = new OrderbookFillEngine(customConfig);
 
       const book = makeBook([[0.49, 100]], [[0.51, 100]]);
       const fill = customEngine.tryFill(makeIntent({ sizeShares: 10 }), book);
 
-      assert.equal(fill.feeRateBps, 100);
-      // feeShares at 100 bps should be half of 200 bps
+      assert.equal(fill.feeRate, 0.025);
+      // feeShares at 0.025 should be half of 0.05
       const fillDefault = engine.tryFill(makeIntent({ sizeShares: 10 }), book);
       assert.ok(Math.abs(fill.feeShares - fillDefault.feeShares / 2) < 1e-10);
     });
