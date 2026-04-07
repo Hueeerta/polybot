@@ -9,9 +9,9 @@ import { Orchestrator } from './runtime/index.js';
 async function main(): Promise<void> {
   const config = loadConfig();
 
-  if (config.mode !== 'readonly') {
+  if (config.mode !== 'readonly' && config.mode !== 'paper') {
     process.stderr.write(`Error: mode "${config.mode}" is not implemented.\n`);
-    process.stderr.write('Only "readonly" mode is available in this stage.\n');
+    process.stderr.write('Only "readonly" and "paper" modes are available.\n');
     process.exit(1);
   }
 
