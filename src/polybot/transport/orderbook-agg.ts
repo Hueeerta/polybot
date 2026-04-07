@@ -45,40 +45,92 @@ export class OrderbookAggregator {
     this.books.set(assetId, this.buildSnapshot(assetId, bids, asks, frame.receivedAt));
   }
 
+  /**
+   * Handle price_change frames from Polymarket WS.
+   *
+   * Real WS format: { event_type: "price_change", market: "0x...",
+   *   price_changes: [{ asset_id, price, size, side, ... }, ...] }
+   *
+   * Each entry in price_changes updates a different asset's book.
+   */
   private handlePriceChange(frame: WsFrame): void {
     const raw = frame.raw;
+
+    // Polymarket WS format: price_changes[] array with per-asset entries
+    const priceChanges = raw.price_changes as Array<Record<string, string>> | undefined;
+    if (Array.isArray(priceChanges)) {
+      for (const change of priceChanges) {
+        const assetId = change.asset_id;
+        if (!assetId) continue;
+        this.applyChange(assetId, change, frame.receivedAt);
+      }
+      return;
+    }
+
+    // Legacy/test fallback: top-level asset_id with changes[] or direct fields
     const assetId = raw.asset_id as string | undefined;
     if (!assetId) return;
 
+    const changes = this.extractChanges(raw);
+    for (const change of changes) {
+      this.applySingleChange(assetId, change, frame.receivedAt);
+    }
+  }
+
+  /** Apply a single price_change entry to the book for a given asset. */
+  private applyChange(assetId: string, change: Record<string, string>, receivedAt: string): void {
     const existing = this.books.get(assetId);
     if (!existing) return; // Can't apply delta without a base snapshot
 
+    const price = parseFloat(change.price ?? '0');
+    const size = parseFloat(change.size ?? '0');
+    const side = change.side?.toUpperCase() === 'SELL' ? 'sell' : 'buy';
+
     const bids = [...existing.bids];
     const asks = [...existing.asks];
+    const levels = side === 'buy' ? bids : asks;
 
-    // price_change can have a `changes` array or direct price/side/size fields
-    const changes = this.extractChanges(raw);
-
-    for (const change of changes) {
-      const levels = change.side === 'buy' ? bids : asks;
-      const idx = levels.findIndex(l => Math.abs(l.price - change.price) < 1e-10);
-
-      if (change.size < 1e-10) {
-        // Remove level
-        if (idx >= 0) levels.splice(idx, 1);
-      } else if (idx >= 0) {
-        // Update existing level
-        levels[idx] = { price: change.price, size: change.size };
-      } else {
-        // Insert new level
-        levels.push({ price: change.price, size: change.size });
-      }
+    const idx = levels.findIndex(l => Math.abs(l.price - price) < 1e-10);
+    if (size < 1e-10) {
+      if (idx >= 0) levels.splice(idx, 1);
+    } else if (idx >= 0) {
+      levels[idx] = { price, size };
+    } else {
+      levels.push({ price, size });
     }
 
     bids.sort((a, b) => b.price - a.price);
     asks.sort((a, b) => a.price - b.price);
 
-    this.books.set(assetId, this.buildSnapshot(assetId, bids, asks, frame.receivedAt));
+    this.books.set(assetId, this.buildSnapshot(assetId, bids, asks, receivedAt));
+  }
+
+  /** Apply a parsed change object to the book. Used by legacy/test fallback. */
+  private applySingleChange(
+    assetId: string,
+    change: { price: number; size: number; side: 'buy' | 'sell' },
+    receivedAt: string,
+  ): void {
+    const existing = this.books.get(assetId);
+    if (!existing) return;
+
+    const bids = [...existing.bids];
+    const asks = [...existing.asks];
+    const levels = change.side === 'buy' ? bids : asks;
+
+    const idx = levels.findIndex(l => Math.abs(l.price - change.price) < 1e-10);
+    if (change.size < 1e-10) {
+      if (idx >= 0) levels.splice(idx, 1);
+    } else if (idx >= 0) {
+      levels[idx] = { price: change.price, size: change.size };
+    } else {
+      levels.push({ price: change.price, size: change.size });
+    }
+
+    bids.sort((a, b) => b.price - a.price);
+    asks.sort((a, b) => a.price - b.price);
+
+    this.books.set(assetId, this.buildSnapshot(assetId, bids, asks, receivedAt));
   }
 
   private extractChanges(raw: Record<string, unknown>): Array<{ price: number; size: number; side: 'buy' | 'sell' }> {

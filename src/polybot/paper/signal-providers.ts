@@ -35,8 +35,12 @@ export class RandomSignalProvider implements SignalProvider {
     const probability = this.options.probability ?? 0.1;
     if (Math.random() > probability) return [];
 
-    const assetId = frame.raw.asset_id as string | undefined;
-    if (!assetId) return [];
+    // price_change frames have asset_id inside price_changes[] array
+    const assetIds = this.extractAssetIds(frame);
+    if (assetIds.length === 0) return [];
+
+    // Pick one asset from the frame
+    const assetId = assetIds[Math.floor(Math.random() * assetIds.length)];
 
     // Decide side: sell if we hold a position, otherwise buy
     const existing = portfolio.getPosition(assetId);
@@ -60,6 +64,20 @@ export class RandomSignalProvider implements SignalProvider {
       signalSource: this.name,
       timestamp: new Date().toISOString(),
     }];
+  }
+
+  /** Extract asset IDs from a WS frame (handles both top-level and nested formats). */
+  private extractAssetIds(frame: WsFrame): string[] {
+    // price_change: asset_id is inside price_changes[] array
+    const changes = frame.raw.price_changes as Array<{ asset_id?: string }> | undefined;
+    if (changes && Array.isArray(changes)) {
+      return changes
+        .map(c => c.asset_id)
+        .filter((id): id is string => typeof id === 'string');
+    }
+    // Fallback: top-level asset_id (book frames)
+    const topLevel = frame.raw.asset_id as string | undefined;
+    return topLevel ? [topLevel] : [];
   }
 }
 
